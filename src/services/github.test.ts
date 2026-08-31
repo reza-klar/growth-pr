@@ -113,7 +113,7 @@ describe('github api service', () => {
       });
     });
 
-    it('chunks large repository lists into groups of 15', async () => {
+    it('chunks large repository lists into groups of 5', async () => {
       const twentyRepos = Array.from({ length: 25 }, (_, i) => `org/repo-${i}`);
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: true,
@@ -126,8 +126,8 @@ describe('github api service', () => {
       });
 
       await fetchRepoPRs('token', twentyRepos);
-      // 25 repos chunked by 15 -> 2 calls
-      expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+      // 25 repos chunked by 5 -> 5 calls
+      expect(globalThis.fetch).toHaveBeenCalledTimes(5);
     });
 
     it('gracefully continues and warns when response contains partial GraphQL errors', async () => {
@@ -220,7 +220,7 @@ describe('github api service', () => {
       expect(result.prs[0].ciStatus).toBe('SUCCESS');
     });
 
-    it('throws error when fetch response is not ok', async () => {
+    it('collects warnings when fetch response is not ok without throwing uncaught rejection', async () => {
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 403,
@@ -228,7 +228,10 @@ describe('github api service', () => {
         json: async () => ({ message: 'API rate limit exceeded' }),
       });
 
-      await expect(fetchRepoPRs('token', ['ownerA/repo1'])).rejects.toThrow('API rate limit exceeded');
+      const result = await fetchRepoPRs('token', ['ownerA/repo1']);
+      expect(result.prs).toHaveLength(0);
+      expect(result.warnings.length).toBeGreaterThan(0);
+      expect(result.warnings[0]).toContain('API rate limit exceeded');
     });
   });
 

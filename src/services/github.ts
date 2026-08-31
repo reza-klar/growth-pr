@@ -9,7 +9,7 @@ export function buildBatchedGraphQLQuery(repositories: string[]): string {
       repo_${index}: repository(owner: "${owner}", name: "${name}") {
         nameWithOwner
         url
-        pullRequests(first: 50, states: [OPEN], orderBy: {field: CREATED_AT, direction: DESC}) {
+        pullRequests(first: 35, states: [OPEN], orderBy: {field: UPDATED_AT, direction: DESC}) {
           nodes {
             id
             number
@@ -26,7 +26,7 @@ export function buildBatchedGraphQLQuery(repositories: string[]): string {
               url
             }
             reviewDecision
-            reviewRequests(first: 20) {
+            reviewRequests(first: 10) {
               nodes {
                 requestedReviewer {
                   ... on User {
@@ -41,55 +41,36 @@ export function buildBatchedGraphQLQuery(repositories: string[]): string {
                 color
               }
             }
-            comments(first: 1) {
+            comments(last: 1) {
               totalCount
+              nodes {
+                createdAt
+                author {
+                  login
+                  avatarUrl
+                  url
+                }
+                bodyText
+              }
             }
-            reviews(first: 1) {
+            reviews(last: 1) {
               totalCount
+              nodes {
+                createdAt
+                author {
+                  login
+                  avatarUrl
+                  url
+                }
+                bodyText
+                state
+              }
             }
-            participants(first: 15) {
+            participants(first: 10) {
               nodes {
                 login
                 avatarUrl
                 url
-              }
-            }
-            timelineItems(last: 10, itemTypes: [ISSUE_COMMENT, PULL_REQUEST_REVIEW, PULL_REQUEST_COMMIT]) {
-              nodes {
-                __typename
-                ... on IssueComment {
-                  createdAt
-                  author {
-                    login
-                    avatarUrl
-                    url
-                  }
-                  bodyText
-                }
-                ... on PullRequestReview {
-                  createdAt
-                  author {
-                    login
-                    avatarUrl
-                    url
-                  }
-                  bodyText
-                  state
-                }
-                ... on PullRequestCommit {
-                  commit {
-                    committedDate
-                    author {
-                      user {
-                        login
-                        avatarUrl
-                        url
-                      }
-                      name
-                    }
-                    message
-                  }
-                }
               }
             }
             commits(last: 1) {
@@ -171,7 +152,7 @@ export function normalizeRepoName(input: string): string {
   return cleaned;
 }
 
-const CHUNK_SIZE = 15;
+const CHUNK_SIZE = 5;
 
 export async function fetchRepoPRs(
   token: string,
@@ -212,30 +193,38 @@ export async function fetchRepoPRs(
 
   const results = await Promise.all(
     chunks.map(async (chunk) => {
-      const query = buildBatchedGraphQLQuery(chunk);
-      const res = await fetch('https://api.github.com/graphql', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${cleanToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query }),
-      });
+      try {
+        const query = buildBatchedGraphQLQuery(chunk);
+        const res = await fetch('https://api.github.com/graphql', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${cleanToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query }),
+        });
 
-      if (!res.ok) {
-        let errMsg = `GitHub API request failed (${res.status} ${res.statusText})`;
-        try {
-          const j = await res.json();
-          if (j.message) errMsg = j.message;
-        } catch {}
-        throw new Error(errMsg);
+        if (!res.ok) {
+          let errMsg = `GitHub API request failed (${res.status} ${res.statusText})`;
+          try {
+            const j = await res.json();
+            if (j.message) errMsg = j.message;
+          } catch {}
+          warningsSet.add(`Failed to load repositories [${chunk.join(', ')}]: ${errMsg}`);
+          return null;
+        }
+
+        return await res.json();
+      } catch (fetchErr: any) {
+        warningsSet.add(`Network load error for [${chunk.join(', ')}]: ${fetchErr.message || 'Load failed'}`);
+        return null;
       }
-
-      return res.json();
     })
   );
 
   for (const payload of results) {
+    if (!payload) continue;
+
     if (payload.errors && payload.errors.length > 0) {
       console.warn('GraphQL partial error encountered for chunk:', payload.errors);
       payload.errors.forEach((err: any) => {
@@ -277,9 +266,8 @@ export async function fetchRepoPRs(
 }
 
 export function transformGraphQLPR(node: any, viewerLogin?: string): PullRequestItem {
-  const issueCommentsCount = node.comments?.totalCount || 0;
-  const reviewsCount = node.reviews?.totalCount || 0;
-  const totalCommentsCount = issueCommentsCount + reviewsCount;
+  const totalCommentsCount =
+    (node.comments?.totalCount || 0) + (node.reviews?.totalCount || 0);
 
   // Review Decision
   let reviewDecision: ReviewDecision = 'REVIEW_REQUIRED';
@@ -311,52 +299,71 @@ export function transformGraphQLPR(node: any, viewerLogin?: string): PullRequest
   let lastInteraction: LastInteraction = {
     user: {
       login: node.author?.login || 'unknown',
-      avatarUrl: node.author?.avatarUrl || '',
-      url: node.author?.url || '',
+      avatarUrl: node.author?.avatarUrl || `https://github.com/${node.author?.login || 'ghost'}.png`,
+      url: node.author?.url || `https://github.com/${node.author?.login || 'ghost'}`,
     },
     type: 'commit',
     createdAt: node.createdAt || new Date().toISOString(),
   };
 
-  const timelineItems = node.timelineItems?.nodes || [];
-  for (let i = timelineItems.length - 1; i >= 0; i--) {
-    const item = timelineItems[i];
-    if (!item) continue;
-    if (item.__typename === 'IssueComment' && item.author) {
-      lastInteraction = {
-        user: {
-          login: item.author.login,
-          avatarUrl: item.author.avatarUrl || `https://github.com/${item.author.login}.png`,
-          url: item.author.url || `https://github.com/${item.author.login}`,
-        },
-        type: 'comment',
-        createdAt: item.createdAt,
-        snippet: item.bodyText?.slice(0, 80),
-      };
-      break;
-    } else if (item.__typename === 'PullRequestReview' && item.author) {
-      lastInteraction = {
-        user: {
-          login: item.author.login,
-          avatarUrl: item.author.avatarUrl || `https://github.com/${item.author.login}.png`,
-          url: item.author.url || `https://github.com/${item.author.login}`,
-        },
-        type: 'review',
-        createdAt: item.createdAt,
-        snippet: item.bodyText?.slice(0, 80),
-      };
-      break;
-    } else if (item.__typename === 'PullRequestCommit' && item.commit?.author?.user) {
-      lastInteraction = {
-        user: {
-          login: item.commit.author.user.login,
-          avatarUrl: item.commit.author.user.avatarUrl || `https://github.com/${item.commit.author.user.login}.png`,
-          url: item.commit.author.user.url || `https://github.com/${item.commit.author.user.login}`,
-        },
-        type: 'commit',
-        createdAt: item.commit.committedDate,
-      };
-      break;
+  const lastComment = node.comments?.nodes?.[0];
+  const lastReview = node.reviews?.nodes?.[0];
+
+  const commentTime = lastComment?.createdAt ? new Date(lastComment.createdAt).getTime() : 0;
+  const reviewTime = lastReview?.createdAt ? new Date(lastReview.createdAt).getTime() : 0;
+
+  if (commentTime > 0 && commentTime >= reviewTime && lastComment?.author) {
+    lastInteraction = {
+      user: {
+        login: lastComment.author.login,
+        avatarUrl: lastComment.author.avatarUrl || `https://github.com/${lastComment.author.login}.png`,
+        url: lastComment.author.url || `https://github.com/${lastComment.author.login}`,
+      },
+      type: 'comment',
+      createdAt: lastComment.createdAt,
+      snippet: lastComment.bodyText?.slice(0, 80),
+    };
+  } else if (reviewTime > 0 && reviewTime > commentTime && lastReview?.author) {
+    lastInteraction = {
+      user: {
+        login: lastReview.author.login,
+        avatarUrl: lastReview.author.avatarUrl || `https://github.com/${lastReview.author.login}.png`,
+        url: lastReview.author.url || `https://github.com/${lastReview.author.login}`,
+      },
+      type: 'review',
+      createdAt: lastReview.createdAt,
+      snippet: lastReview.bodyText?.slice(0, 80),
+    };
+  } else if (node.timelineItems?.nodes) {
+    const timelineItems = node.timelineItems.nodes;
+    for (let i = timelineItems.length - 1; i >= 0; i--) {
+      const item = timelineItems[i];
+      if (!item) continue;
+      if (item.__typename === 'IssueComment' && item.author) {
+        lastInteraction = {
+          user: {
+            login: item.author.login,
+            avatarUrl: item.author.avatarUrl || `https://github.com/${item.author.login}.png`,
+            url: item.author.url || `https://github.com/${item.author.login}`,
+          },
+          type: 'comment',
+          createdAt: item.createdAt,
+          snippet: item.bodyText?.slice(0, 80),
+        };
+        break;
+      } else if (item.__typename === 'PullRequestReview' && item.author) {
+        lastInteraction = {
+          user: {
+            login: item.author.login,
+            avatarUrl: item.author.avatarUrl || `https://github.com/${item.author.login}.png`,
+            url: item.author.url || `https://github.com/${item.author.login}`,
+          },
+          type: 'review',
+          createdAt: item.createdAt,
+          snippet: item.bodyText?.slice(0, 80),
+        };
+        break;
+      }
     }
   }
 
