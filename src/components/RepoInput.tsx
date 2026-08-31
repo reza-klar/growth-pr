@@ -13,8 +13,9 @@ export const RepoInput: React.FC<RepoInputProps> = ({ repositories, onChange }) 
   const handleAdd = () => {
     const trimmed = inputVal.trim();
     if (!trimmed) return;
-    if (!trimmed.includes('/') || trimmed.split('/').length !== 2) {
-      setError('Repository must be in "owner/repo" format');
+    const repoRegex = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
+    if (!repoRegex.test(trimmed)) {
+      setError('Repository must be in "owner/repo" format (alphanumeric, dots, dashes, underscores)');
       return;
     }
     if (repositories.includes(trimmed)) {

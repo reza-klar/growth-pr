@@ -70,13 +70,13 @@ export const PRRow: React.FC<{ pr: PullRequestItem }> = ({ pr }) => {
       <td className="px-4 py-3.5 whitespace-nowrap">
         <div className="flex items-center gap-2">
           <img
-            src={pr.author.avatarUrl}
+            src={pr.author.avatarUrl || `https://github.com/${pr.author.login || 'ghost'}.png`}
             alt={pr.author.login}
-            className="w-6 h-6 rounded-full border border-slate-700"
+            className="w-6 h-6 rounded-full border border-slate-700 bg-slate-800"
           />
           <div>
             <a
-              href={pr.author.url}
+              href={pr.author.url || `https://github.com/${pr.author.login || 'ghost'}`}
               target="_blank"
               rel="noreferrer"
               className="text-xs font-medium text-slate-200 hover:underline block"
@@ -109,10 +109,10 @@ export const PRRow: React.FC<{ pr: PullRequestItem }> = ({ pr }) => {
             {pr.participants.slice(0, 5).map((p) => (
               <img
                 key={p.login}
-                src={p.avatarUrl}
+                src={p.avatarUrl || `https://github.com/${p.login}.png`}
                 alt={p.login}
                 title={`@${p.login}`}
-                className="w-5 h-5 rounded-full border border-slate-800 ring-1 ring-slate-950"
+                className="w-5 h-5 rounded-full border border-slate-800 ring-1 ring-slate-950 bg-slate-800"
               />
             ))}
             {pr.participants.length > 5 && (
@@ -128,13 +128,13 @@ export const PRRow: React.FC<{ pr: PullRequestItem }> = ({ pr }) => {
       <td className="px-4 py-3.5 whitespace-nowrap">
         <div className="flex items-center gap-2">
           <img
-            src={pr.lastInteraction.user.avatarUrl}
+            src={pr.lastInteraction.user.avatarUrl || `https://github.com/${pr.lastInteraction.user.login || 'ghost'}.png`}
             alt={pr.lastInteraction.user.login}
-            className="w-5 h-5 rounded-full border border-slate-700 shrink-0"
+            className="w-5 h-5 rounded-full border border-slate-700 shrink-0 bg-slate-800"
           />
           <div className="text-xs">
             <div className="flex items-center gap-1 text-slate-300">
-              <MessageCircle className="w-3 h-3 text-blue-400" />
+              <MessageCircle className="w-3.5 h-3.5 text-blue-400" />
               <span className="font-medium text-slate-200">
                 @{pr.lastInteraction.user.login}
               </span>
