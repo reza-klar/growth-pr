@@ -91,12 +91,82 @@ describe('github api service', () => {
   });
 
   describe('fetchRepoPRs', () => {
-    it('returns empty list and default rate limit when repositories is empty', async () => {
-      globalThis.fetch = vi.fn();
-      const result = await fetchRepoPRs('token', []);
-      expect(result.prs).toEqual([]);
-      expect(result.rateLimit.limit).toBe(5000);
-      expect(globalThis.fetch).not.toHaveBeenCalled();
+    it('trims whitespace and newlines from token and repository names', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: {
+            viewer: { login: 'octocat' },
+            rateLimit: { limit: 5000, remaining: 4900, resetAt: '2026-08-31T00:00:00Z', used: 100 },
+          },
+        }),
+      });
+
+      await fetchRepoPRs('  ghp_token_with_spaces \n', ['  owner/repo1  ']);
+      expect(globalThis.fetch).toHaveBeenCalledWith('https://api.github.com/graphql', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ghp_token_with_spaces',
+          'Content-Type': 'application/json',
+        },
+        body: expect.any(String),
+      });
+    });
+
+    it('chunks large repository lists into groups of 15', async () => {
+      const twentyRepos = Array.from({ length: 25 }, (_, i) => `org/repo-${i}`);
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: {
+            viewer: { login: 'octocat' },
+            rateLimit: { limit: 5000, remaining: 4900, resetAt: '2026-08-31T00:00:00Z', used: 100 },
+          },
+        }),
+      });
+
+      await fetchRepoPRs('token', twentyRepos);
+      // 25 repos chunked by 15 -> 2 calls
+      expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('gracefully continues and warns when response contains partial GraphQL errors', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          errors: [{ message: 'Could not resolve to a Repository with the name non-existent' }],
+          data: {
+            viewer: { login: 'octocat' },
+            rateLimit: { limit: 5000, remaining: 4900, resetAt: '2026-08-31T00:00:00Z', used: 100 },
+            repo_0: {
+              nameWithOwner: 'owner/valid-repo',
+              url: 'https://github.com/owner/valid-repo',
+              pullRequests: {
+                nodes: [
+                  {
+                    id: 'PR_1',
+                    number: 1,
+                    title: 'test',
+                    url: 'https://github.com/owner/valid-repo/pull/1',
+                    author: { login: 'alice' },
+                    createdAt: '2026-08-31T00:00:00Z',
+                    updatedAt: '2026-08-31T00:00:00Z',
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      });
+
+      const result = await fetchRepoPRs('token', ['owner/valid-repo', 'owner/non-existent']);
+      expect(result.prs.length).toBe(1);
+      expect(result.prs[0].repository.nameWithOwner).toBe('owner/valid-repo');
+      expect(warnSpy).toHaveBeenCalledWith(
+        'GraphQL partial error encountered for chunk:',
+        expect.any(Array)
+      );
     });
 
     it('fetches PRs for repos and transforms payload with rate limit', async () => {

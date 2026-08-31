@@ -33,17 +33,18 @@ export const PRRow: React.FC<{ pr: PullRequestItem }> = ({ pr }) => {
       {/* PR Details */}
       <td className="px-4 py-3.5 max-w-md">
         <div className="space-y-1">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-baseline gap-2 flex-wrap">
             <a
               href={pr.url}
               target="_blank"
               rel="noreferrer"
-              className="text-sm font-semibold text-slate-100 hover:text-blue-400 transition-colors inline-flex items-center gap-1"
+              title={pr.title}
+              className="text-sm font-semibold text-slate-100 hover:text-blue-400 transition-colors inline-flex items-center gap-1 line-clamp-2 break-words"
             >
               {pr.title}
-              <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 text-slate-400" />
+              <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 text-slate-400 shrink-0" />
             </a>
-            <span className="text-xs text-slate-500 font-mono">#{pr.number}</span>
+            <span className="text-xs text-slate-500 font-mono shrink-0">#{pr.number}</span>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap text-xs text-slate-400">

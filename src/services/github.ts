@@ -125,6 +125,7 @@ export function buildBatchedGraphQLQuery(repositories: string[]): string {
 }
 
 export async function verifyToken(token: string): Promise<{ login: string; name: string }> {
+  const cleanToken = token.trim();
   const query = `
     query {
       viewer {
@@ -136,7 +137,7 @@ export async function verifyToken(token: string): Promise<{ login: string; name:
   const res = await fetch('https://api.github.com/graphql', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${cleanToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ query }),
@@ -160,67 +161,102 @@ export async function verifyToken(token: string): Promise<{ login: string; name:
   return json.data.viewer;
 }
 
+const CHUNK_SIZE = 15;
+
 export async function fetchRepoPRs(
   token: string,
   repositories: string[],
   currentUserLogin?: string
 ): Promise<{ prs: PullRequestItem[]; rateLimit: RateLimitInfo }> {
-  if (repositories.length === 0) {
+  const cleanToken = token.trim();
+  const validRepos = repositories
+    .map((r) => r.trim())
+    .filter((r) => {
+      const parts = r.split('/');
+      return parts.length === 2 && Boolean(parts[0]) && Boolean(parts[1]);
+    });
+
+  if (validRepos.length === 0) {
     return {
       prs: [],
       rateLimit: { limit: 5000, remaining: 5000, resetAt: new Date().toISOString(), used: 0 },
     };
   }
 
-  const query = buildBatchedGraphQLQuery(repositories);
-  const res = await fetch('https://api.github.com/graphql', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ query }),
-  });
-
-  if (!res.ok) {
-    let errMsg = `GitHub API request failed (${res.status} ${res.statusText})`;
-    try {
-      const j = await res.json();
-      if (j.message) errMsg = j.message;
-    } catch {}
-    throw new Error(errMsg);
+  // Chunk repositories into groups of CHUNK_SIZE to prevent exceeding GraphQL complexity limits
+  const chunks: string[][] = [];
+  for (let i = 0; i < validRepos.length; i += CHUNK_SIZE) {
+    chunks.push(validRepos.slice(i, i + CHUNK_SIZE));
   }
 
-  const payload = await res.json();
-  const viewerLogin = currentUserLogin || payload.data?.viewer?.login;
-  const rateLimit: RateLimitInfo = payload.data?.rateLimit || {
+  let latestRateLimit: RateLimitInfo = {
     limit: 5000,
     remaining: 5000,
     resetAt: new Date().toISOString(),
     used: 0,
   };
-
+  let viewerLogin = currentUserLogin;
   const rawPRs: any[] = [];
-  if (payload.data) {
-    Object.keys(payload.data).forEach((key) => {
-      if (key.startsWith('repo_') && payload.data[key]) {
-        const repo = payload.data[key];
-        const prNodes = repo.pullRequests?.nodes || [];
-        prNodes.forEach((node: any) => {
-          rawPRs.push({
-            ...node,
-            repository: {
-              nameWithOwner: repo.nameWithOwner,
-              url: repo.url,
-            },
-          });
-        });
+
+  const results = await Promise.all(
+    chunks.map(async (chunk) => {
+      const query = buildBatchedGraphQLQuery(chunk);
+      const res = await fetch('https://api.github.com/graphql', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${cleanToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query }),
+      });
+
+      if (!res.ok) {
+        let errMsg = `GitHub API request failed (${res.status} ${res.statusText})`;
+        try {
+          const j = await res.json();
+          if (j.message) errMsg = j.message;
+        } catch {}
+        throw new Error(errMsg);
       }
-    });
+
+      return res.json();
+    })
+  );
+
+  for (const payload of results) {
+    if (payload.errors && payload.errors.length > 0) {
+      console.warn('GraphQL partial error encountered for chunk:', payload.errors);
+    }
+
+    if (!viewerLogin && payload.data?.viewer?.login) {
+      viewerLogin = payload.data.viewer.login;
+    }
+
+    if (payload.data?.rateLimit) {
+      latestRateLimit = payload.data.rateLimit;
+    }
+
+    if (payload.data) {
+      Object.keys(payload.data).forEach((key) => {
+        if (key.startsWith('repo_') && payload.data[key]) {
+          const repo = payload.data[key];
+          const prNodes = repo.pullRequests?.nodes || [];
+          prNodes.forEach((node: any) => {
+            rawPRs.push({
+              ...node,
+              repository: {
+                nameWithOwner: repo.nameWithOwner,
+                url: repo.url,
+              },
+            });
+          });
+        }
+      });
+    }
   }
 
   const prs = rawPRs.map((node) => transformGraphQLPR(node, viewerLogin));
-  return { prs, rateLimit };
+  return { prs, rateLimit: latestRateLimit };
 }
 
 export function transformGraphQLPR(node: any, viewerLogin?: string): PullRequestItem {

@@ -225,7 +225,7 @@ describe('App Main Dashboard Integration', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Export Standup/i }));
 
-    fireEvent.click(screen.getByRole('button', { name: '' }));
+    fireEvent.click(screen.getByRole('button', { name: /close/i }));
     await waitFor(() => {
       expect(screen.queryByText(/Export Standup Digest/i)).not.toBeInTheDocument();
     });

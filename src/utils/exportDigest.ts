@@ -16,7 +16,8 @@ export function generateMarkdownDigest(prs: PullRequestItem[]): string {
     byRepo[repo].forEach((pr) => {
       const statusIcon = pr.reviewDecision === 'APPROVED' ? '✅ Approved' : '⏳ Needs Review';
       const lastUser = pr.lastInteraction?.user?.login || pr.author.login;
-      md += `- [#${pr.number} ${pr.title}](${pr.url}) by @${pr.author.login} (${statusIcon}, 💬 ${pr.totalCommentsCount} comments, last active: @${lastUser})\n`;
+      const safeTitle = pr.title.replace(/\[/g, '\\[').replace(/\]/g, '\\]');
+      md += `- [#${pr.number} ${safeTitle}](${pr.url}) by @${pr.author.login} (${statusIcon}, 💬 ${pr.totalCommentsCount} comments, last active: @${lastUser})\n`;
     });
     md += '\n';
   });
@@ -40,7 +41,11 @@ export function generateSlackDigest(prs: PullRequestItem[]): string {
     byRepo[repo].forEach((pr) => {
       const statusEmoji = pr.reviewDecision === 'APPROVED' ? '✅' : '⏳';
       const lastUser = pr.lastInteraction?.user?.login || pr.author.login;
-      text += `• <${pr.url}|#${pr.number} ${pr.title}> - by @${pr.author.login} ${statusEmoji} (💬 ${pr.totalCommentsCount} | Last: @${lastUser})\n`;
+      const safeTitle = pr.title
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      text += `• <${pr.url}|#${pr.number} ${safeTitle}> - by @${pr.author.login} ${statusEmoji} (💬 ${pr.totalCommentsCount} | Last: @${lastUser})\n`;
     });
     text += '\n';
   });

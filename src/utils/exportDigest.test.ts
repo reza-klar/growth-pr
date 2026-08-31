@@ -113,6 +113,14 @@ describe('exportDigest', () => {
       expect(md).toContain('#102 refactor: simplify database queries');
       expect(md).toContain('#202 feat: add dark mode theme');
     });
+    it('escapes brackets in PR titles for markdown links', () => {
+      const prWithBrackets: PullRequestItem = {
+        ...samplePR1,
+        title: '[WIP] [HOTFIX] update login flow [urgent]',
+      };
+      const md = generateMarkdownDigest([prWithBrackets]);
+      expect(md).toContain('\\[WIP\\] \\[HOTFIX\\] update login flow \\[urgent\\]');
+    });
   });
 
   describe('generateSlackDigest', () => {
@@ -136,6 +144,15 @@ describe('exportDigest', () => {
       expect(slack).toContain('<https://github.com/org/ui-kit/pull/202|#202 feat: add dark mode theme>');
       expect(slack).toContain('by @alice ✅');
       expect(slack).toContain('💬 7 | Last: @bob');
+    });
+
+    it('escapes HTML entities (<, >, &) in PR titles for Slack links', () => {
+      const prWithHtml: PullRequestItem = {
+        ...samplePR1,
+        title: 'fix: <User> & <Admin> permissions',
+      };
+      const slack = generateSlackDigest([prWithHtml]);
+      expect(slack).toContain('&lt;User&gt; &amp; &lt;Admin&gt;');
     });
 
     it('groups multiple PRs by repository in slack digest', () => {

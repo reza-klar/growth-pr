@@ -28,12 +28,16 @@ export function getStoredSettings(): AppSettings {
 }
 
 export function saveStoredSettings(settings: AppSettings): void {
-  const json = JSON.stringify(settings);
-  if (settings.storageType === 'session') {
-    sessionStorage.setItem(STORAGE_KEY, json);
-    localStorage.removeItem(STORAGE_KEY);
-  } else {
-    localStorage.setItem(STORAGE_KEY, json);
-    sessionStorage.removeItem(STORAGE_KEY);
+  try {
+    const json = JSON.stringify(settings);
+    if (settings.storageType === 'session') {
+      sessionStorage.setItem(STORAGE_KEY, json);
+      localStorage.removeItem(STORAGE_KEY);
+    } else {
+      localStorage.setItem(STORAGE_KEY, json);
+      sessionStorage.removeItem(STORAGE_KEY);
+    }
+  } catch (err) {
+    console.error('Failed to save stored settings:', err);
   }
 }

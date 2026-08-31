@@ -94,7 +94,7 @@ describe('ExportModal', () => {
       <ExportModal isOpen={true} onClose={handleClose} prs={[samplePR]} />
     );
 
-    const closeButton = screen.getByRole('button', { name: '' });
+    const closeButton = screen.getByRole('button', { name: /close/i });
     fireEvent.click(closeButton);
 
     expect(handleClose).toHaveBeenCalledTimes(1);
@@ -154,5 +154,20 @@ describe('ExportModal', () => {
 
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
     expect(textarea.value).toBe('No open pull requests.');
+  });
+
+  it('closes modal on Escape key press', () => {
+    const handleClose = vi.fn();
+    render(<ExportModal isOpen={true} onClose={handleClose} prs={[]} />);
+    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+    expect(handleClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes modal on backdrop click', () => {
+    const handleClose = vi.fn();
+    const { container } = render(<ExportModal isOpen={true} onClose={handleClose} prs={[]} />);
+    const backdrop = container.firstChild as HTMLElement;
+    fireEvent.click(backdrop);
+    expect(handleClose).toHaveBeenCalledTimes(1);
   });
 });

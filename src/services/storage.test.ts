@@ -80,4 +80,14 @@ describe('storage service', () => {
     expect(settings).toEqual(DEFAULT_SETTINGS);
     expect(consoleSpy).toHaveBeenCalled();
   });
+
+  it('catches and logs storage quota errors without crashing', () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+
+    expect(() => saveStoredSettings(DEFAULT_SETTINGS)).not.toThrow();
+    expect(consoleSpy).toHaveBeenCalledWith('Failed to save stored settings:', expect.any(Error));
+  });
 });
