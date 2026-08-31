@@ -161,16 +161,26 @@ export async function verifyToken(token: string): Promise<{ login: string; name:
   return json.data.viewer;
 }
 
+export function normalizeRepoName(input: string): string {
+  let cleaned = input.trim();
+  cleaned = cleaned.replace(/^git@github\.com:/, '');
+  cleaned = cleaned.replace(/^https?:\/\/(www\.)?github\.com\//, '');
+  cleaned = cleaned.replace(/^github\.com\//, '');
+  cleaned = cleaned.replace(/\.git$/, '');
+  cleaned = cleaned.replace(/^\/+|\/+$/g, '');
+  return cleaned;
+}
+
 const CHUNK_SIZE = 15;
 
 export async function fetchRepoPRs(
   token: string,
   repositories: string[],
   currentUserLogin?: string
-): Promise<{ prs: PullRequestItem[]; rateLimit: RateLimitInfo }> {
+): Promise<{ prs: PullRequestItem[]; rateLimit: RateLimitInfo; warnings: string[] }> {
   const cleanToken = token.trim();
   const validRepos = repositories
-    .map((r) => r.trim())
+    .map(normalizeRepoName)
     .filter((r) => {
       const parts = r.split('/');
       return parts.length === 2 && Boolean(parts[0]) && Boolean(parts[1]);
@@ -180,6 +190,7 @@ export async function fetchRepoPRs(
     return {
       prs: [],
       rateLimit: { limit: 5000, remaining: 5000, resetAt: new Date().toISOString(), used: 0 },
+      warnings: [],
     };
   }
 
@@ -197,6 +208,7 @@ export async function fetchRepoPRs(
   };
   let viewerLogin = currentUserLogin;
   const rawPRs: any[] = [];
+  const warningsSet = new Set<string>();
 
   const results = await Promise.all(
     chunks.map(async (chunk) => {
@@ -226,6 +238,11 @@ export async function fetchRepoPRs(
   for (const payload of results) {
     if (payload.errors && payload.errors.length > 0) {
       console.warn('GraphQL partial error encountered for chunk:', payload.errors);
+      payload.errors.forEach((err: any) => {
+        if (err.message) {
+          warningsSet.add(err.message);
+        }
+      });
     }
 
     if (!viewerLogin && payload.data?.viewer?.login) {
@@ -256,7 +273,7 @@ export async function fetchRepoPRs(
   }
 
   const prs = rawPRs.map((node) => transformGraphQLPR(node, viewerLogin));
-  return { prs, rateLimit: latestRateLimit };
+  return { prs, rateLimit: latestRateLimit, warnings: Array.from(warningsSet) };
 }
 
 export function transformGraphQLPR(node: any, viewerLogin?: string): PullRequestItem {

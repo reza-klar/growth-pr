@@ -5,9 +5,13 @@ import { RepoInput } from './RepoInput';
 import { DEFAULT_SETTINGS } from '../services/storage';
 import * as githubService from '../services/github';
 
-vi.mock('../services/github', () => ({
-  verifyToken: vi.fn(),
-}));
+vi.mock('../services/github', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/github')>();
+  return {
+    ...actual,
+    verifyToken: vi.fn(),
+  };
+});
 
 describe('SettingsModal', () => {
   beforeEach(() => {

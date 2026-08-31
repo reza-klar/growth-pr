@@ -7,7 +7,7 @@ import { ExportModal } from './components/ExportModal';
 import { getStoredSettings, saveStoredSettings } from './services/storage';
 import { fetchRepoPRs } from './services/github';
 import { AppSettings, PullRequestItem, RateLimitInfo, FilterPreset, SortOption } from './types';
-import { KeyRound, AlertCircle, RefreshCw } from 'lucide-react';
+import { KeyRound, AlertCircle, RefreshCw, AlertTriangle, ExternalLink } from 'lucide-react';
 
 export default function App() {
   const [settings, setSettings] = useState<AppSettings>(getStoredSettings);
@@ -18,6 +18,7 @@ export default function App() {
   const [rateLimit, setRateLimit] = useState<RateLimitInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
   // Filters & Sorting state
@@ -32,10 +33,12 @@ export default function App() {
     }
     setIsLoading(true);
     setError(null);
+    setWarnings([]);
     try {
       const res = await fetchRepoPRs(settings.token, settings.repositories);
       setPrs(res.prs);
       setRateLimit(res.rateLimit);
+      setWarnings(res.warnings || []);
       setLastFetched(new Date());
     } catch (err: any) {
       setError(err.message || 'Failed to fetch Pull Requests');
@@ -182,6 +185,38 @@ export default function App() {
                 >
                   <RefreshCw className="w-3.5 h-3.5" /> Retry
                 </button>
+              </div>
+            )}
+
+            {warnings.length > 0 && (
+              <div className="p-4 bg-amber-950/60 border border-amber-800 text-amber-200 rounded-xl text-xs space-y-2">
+                <div className="flex items-center gap-2 font-semibold text-amber-300">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>GitHub Access / Query Warnings:</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1 text-amber-200/90 pl-1">
+                  {warnings.map((w, idx) => (
+                    <li key={idx} className="break-words">{w}</li>
+                  ))}
+                </ul>
+                {warnings.some((w) => w.toLowerCase().includes('saml')) && (
+                  <div className="pt-2 border-t border-amber-900/60 text-slate-300 flex items-start gap-2">
+                    <span>👉</span>
+                    <div>
+                      <strong className="text-amber-200">SAML SSO Authorization Required:</strong> Your GitHub token needs to be authorized for your company's organization.
+                      <div className="mt-1">
+                        <a
+                          href="https://github.com/settings/tokens"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-blue-400 hover:underline font-medium"
+                        >
+                          Open GitHub Token Settings ➔ Click "Configure SSO" ➔ "Authorize" <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

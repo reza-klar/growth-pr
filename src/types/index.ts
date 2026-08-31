@@ -69,5 +69,12 @@ export interface RateLimitInfo {
   used: number;
 }
 
+export interface FetchPRsResult {
+  prs: PullRequestItem[];
+  rateLimit: RateLimitInfo;
+  warnings: string[];
+}
+
 export type FilterPreset = 'all' | 'waiting_on_me' | 'authored_by_me' | 'needs_review' | 'ready_to_merge';
 export type SortOption = 'created_desc' | 'created_asc' | 'updated_desc' | 'comments_desc' | 'stale_desc';
+

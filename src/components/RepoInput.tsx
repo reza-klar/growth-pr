@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, X, FolderGit2 } from 'lucide-react';
+import { normalizeRepoName } from '../services/github';
 
 interface RepoInputProps {
   repositories: string[];
@@ -11,18 +12,18 @@ export const RepoInput: React.FC<RepoInputProps> = ({ repositories, onChange }) 
   const [error, setError] = useState<string | null>(null);
 
   const handleAdd = () => {
-    const trimmed = inputVal.trim();
-    if (!trimmed) return;
+    const normalized = normalizeRepoName(inputVal);
+    if (!normalized) return;
     const repoRegex = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
-    if (!repoRegex.test(trimmed)) {
+    if (!repoRegex.test(normalized)) {
       setError('Repository must be in "owner/repo" format (alphanumeric, dots, dashes, underscores)');
       return;
     }
-    if (repositories.includes(trimmed)) {
+    if (repositories.includes(normalized)) {
       setError('Repository already added');
       return;
     }
-    onChange([...repositories, trimmed]);
+    onChange([...repositories, normalized]);
     setInputVal('');
     setError(null);
   };

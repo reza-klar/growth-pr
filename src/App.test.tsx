@@ -126,6 +126,7 @@ describe('App Main Dashboard Integration', () => {
     const fetchSpy = vi.spyOn(github, 'fetchRepoPRs').mockResolvedValue({
       prs: [mockPR1, mockPR2],
       rateLimit: { limit: 5000, remaining: 4990, resetAt: new Date().toISOString(), used: 10 },
+      warnings: [],
     });
 
     render(<App />);
@@ -152,6 +153,7 @@ describe('App Main Dashboard Integration', () => {
     const fetchSpy = vi.spyOn(github, 'fetchRepoPRs').mockResolvedValue({
       prs: [mockPR1],
       rateLimit: { limit: 5000, remaining: 4990, resetAt: new Date().toISOString(), used: 10 },
+      warnings: [],
     });
 
     render(<App />);
@@ -184,6 +186,7 @@ describe('App Main Dashboard Integration', () => {
       .mockResolvedValueOnce({
         prs: [mockPR1],
         rateLimit: { limit: 5000, remaining: 4990, resetAt: new Date().toISOString(), used: 10 },
+        warnings: [],
       });
 
     render(<App />);
@@ -215,6 +218,7 @@ describe('App Main Dashboard Integration', () => {
     vi.spyOn(github, 'fetchRepoPRs').mockResolvedValue({
       prs: [mockPR1],
       rateLimit: { limit: 5000, remaining: 4990, resetAt: new Date().toISOString(), used: 10 },
+      warnings: [],
     });
 
     render(<App />);
@@ -244,6 +248,7 @@ describe('App Main Dashboard Integration', () => {
     vi.spyOn(github, 'fetchRepoPRs').mockResolvedValue({
       prs: [mockPR1, mockPR2],
       rateLimit: { limit: 5000, remaining: 4990, resetAt: new Date().toISOString(), used: 10 },
+      warnings: [],
     });
 
     render(<App />);
@@ -287,6 +292,7 @@ describe('App Main Dashboard Integration', () => {
     vi.spyOn(github, 'fetchRepoPRs').mockResolvedValue({
       prs: [mockPR1, mockPR2],
       rateLimit: { limit: 5000, remaining: 4990, resetAt: new Date().toISOString(), used: 10 },
+      warnings: [],
     });
 
     render(<App />);
@@ -329,6 +335,7 @@ describe('App Main Dashboard Integration', () => {
     const fetchSpy = vi.spyOn(github, 'fetchRepoPRs').mockResolvedValue({
       prs: [mockPR1],
       rateLimit: { limit: 5000, remaining: 4990, resetAt: new Date().toISOString(), used: 10 },
+      warnings: [],
     });
 
     render(<App />);
