@@ -41,7 +41,12 @@ export default function App() {
       setWarnings(res.warnings || []);
       setLastFetched(new Date());
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch Pull Requests');
+      const rawMsg = err.message || '';
+      if (rawMsg.toLowerCase().includes('load failed') || rawMsg.toLowerCase().includes('failed to fetch')) {
+        setError('Network / GitHub API connection interrupted. Please check your internet connection or verify that your GitHub token has SSO authorized.');
+      } else {
+        setError(rawMsg || 'Failed to fetch Pull Requests');
+      }
     } finally {
       setIsLoading(false);
     }

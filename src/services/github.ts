@@ -152,7 +152,70 @@ export function normalizeRepoName(input: string): string {
   return cleaned;
 }
 
-const CHUNK_SIZE = 5;
+const CHUNK_SIZE = 4;
+
+async function fetchGraphQLWithFallback(
+  token: string,
+  repos: string[],
+  warningsSet: Set<string>
+): Promise<any[]> {
+  const query = buildBatchedGraphQLQuery(repos);
+  try {
+    const res = await fetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    if (!res.ok) {
+      let errMsg = `GitHub API request failed (${res.status} ${res.statusText})`;
+      try {
+        const j = await res.json();
+        if (j.message) errMsg = j.message;
+      } catch {}
+      warningsSet.add(`Failed to load repositories [${repos.join(', ')}]: ${errMsg}`);
+      return [];
+    }
+
+    const payload = await res.json();
+    return [payload];
+  } catch (err: any) {
+    // If a batched query failed with network/Load failed error, decompose into single repo queries
+    if (repos.length > 1) {
+      const individualResults: any[] = [];
+      for (const singleRepo of repos) {
+        const singlePayloads = await fetchGraphQLWithFallback(token, [singleRepo], warningsSet);
+        individualResults.push(...singlePayloads);
+      }
+      return individualResults;
+    }
+
+    // If a single repository failed, attempt a quick retry
+    try {
+      await new Promise((r) => setTimeout(r, 400));
+      const res = await fetch('https://api.github.com/graphql', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query }),
+      });
+      if (res.ok) {
+        return [await res.json()];
+      }
+    } catch {}
+
+    const repoName = repos[0] || 'repository';
+    warningsSet.add(
+      `Network load failed for [${repoName}] (${err.message || 'Load failed'}). Please check your internet connection or verify SSO token authorization.`
+    );
+    return [];
+  }
+}
 
 export async function fetchRepoPRs(
   token: string,
@@ -175,7 +238,7 @@ export async function fetchRepoPRs(
     };
   }
 
-  // Chunk repositories into groups of CHUNK_SIZE to prevent exceeding GraphQL complexity limits
+  // Chunk repositories into small groups to prevent exceeding GraphQL complexity limits
   const chunks: string[][] = [];
   for (let i = 0; i < validRepos.length; i += CHUNK_SIZE) {
     chunks.push(validRepos.slice(i, i + CHUNK_SIZE));
@@ -191,36 +254,11 @@ export async function fetchRepoPRs(
   const rawPRs: any[] = [];
   const warningsSet = new Set<string>();
 
-  const results = await Promise.all(
-    chunks.map(async (chunk) => {
-      try {
-        const query = buildBatchedGraphQLQuery(chunk);
-        const res = await fetch('https://api.github.com/graphql', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${cleanToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ query }),
-        });
-
-        if (!res.ok) {
-          let errMsg = `GitHub API request failed (${res.status} ${res.statusText})`;
-          try {
-            const j = await res.json();
-            if (j.message) errMsg = j.message;
-          } catch {}
-          warningsSet.add(`Failed to load repositories [${chunk.join(', ')}]: ${errMsg}`);
-          return null;
-        }
-
-        return await res.json();
-      } catch (fetchErr: any) {
-        warningsSet.add(`Network load error for [${chunk.join(', ')}]: ${fetchErr.message || 'Load failed'}`);
-        return null;
-      }
-    })
-  );
+  const results: any[] = [];
+  for (const chunk of chunks) {
+    const chunkResults = await fetchGraphQLWithFallback(cleanToken, chunk, warningsSet);
+    results.push(...chunkResults);
+  }
 
   for (const payload of results) {
     if (!payload) continue;

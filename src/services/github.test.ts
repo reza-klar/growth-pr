@@ -113,8 +113,8 @@ describe('github api service', () => {
       });
     });
 
-    it('chunks large repository lists into groups of 5', async () => {
-      const twentyRepos = Array.from({ length: 25 }, (_, i) => `org/repo-${i}`);
+    it('chunks large repository lists into groups of 4', async () => {
+      const twentyRepos = Array.from({ length: 20 }, (_, i) => `org/repo-${i}`);
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -126,7 +126,7 @@ describe('github api service', () => {
       });
 
       await fetchRepoPRs('token', twentyRepos);
-      // 25 repos chunked by 5 -> 5 calls
+      // 20 repos chunked by 4 -> 5 calls
       expect(globalThis.fetch).toHaveBeenCalledTimes(5);
     });
 
