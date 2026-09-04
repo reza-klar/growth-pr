@@ -6,7 +6,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { ExportModal } from './components/ExportModal';
 import { getStoredSettings, saveStoredSettings } from './services/storage';
 import { fetchRepoPRs } from './services/github';
-import { AppSettings, PullRequestItem, RateLimitInfo, FilterPreset, SortOption } from './types';
+import { AppSettings, PullRequestItem, RateLimitInfo, FilterPreset, SortOption, DEFAULT_NOTIFICATION_SETTINGS } from './types';
+import { useNotificationWatcher } from './hooks/useNotificationWatcher';
 import { KeyRound, AlertCircle, RefreshCw, AlertTriangle, ExternalLink } from 'lucide-react';
 
 export default function App() {
@@ -20,6 +21,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
+  const [selectedReviewer, setSelectedReviewer] = useState<string | null>(null);
+  const [viewerLogin, setViewerLogin] = useState<string | undefined>(undefined);
 
   // Filters & Sorting state
   const [activeFilter, setActiveFilter] = useState<FilterPreset>('all');
@@ -40,6 +43,9 @@ export default function App() {
       setRateLimit(res.rateLimit);
       setWarnings(res.warnings || []);
       setLastFetched(new Date());
+      if ((res as any).viewerLogin) {
+        setViewerLogin((res as any).viewerLogin);
+      }
     } catch (err: any) {
       const rawMsg = err.message || '';
       if (rawMsg.toLowerCase().includes('load failed') || rawMsg.toLowerCase().includes('failed to fetch')) {
@@ -68,6 +74,16 @@ export default function App() {
     return () => clearInterval(interval);
   }, [loadData, settings.autoRefreshIntervalSeconds]);
 
+  const currentViewerLogin =
+    viewerLogin || prs.find((p) => p.isAuthoredByMe)?.author?.login;
+
+  // Real-time PR change detection for desktop notifications
+  useNotificationWatcher(
+    prs,
+    settings.notifications || DEFAULT_NOTIFICATION_SETTINGS,
+    currentViewerLogin
+  );
+
   const handleSaveSettings = (newSettings: AppSettings) => {
     setSettings(newSettings);
     saveStoredSettings(newSettings);
@@ -77,6 +93,30 @@ export default function App() {
   const filteredPrs = useMemo(() => {
     return prs
       .filter((pr) => {
+        // Reviewer filter (from Team Workload popover)
+        if (selectedReviewer) {
+          const rawReviewers = (pr as any).requestedReviewers || (pr as any).reviewRequests || [];
+          const matchesRequested = Array.isArray(rawReviewers) && rawReviewers.some((item: any) => {
+            const user = item?.requestedReviewer || item;
+            const login = typeof user === 'string' ? user : user?.login;
+            return login?.toLowerCase() === selectedReviewer.toLowerCase();
+          });
+
+          const matchesParticipant = pr.participants?.some(
+            (p) => p.login?.toLowerCase() === selectedReviewer.toLowerCase()
+          );
+
+          const matchesWaitingOnMe = Boolean(
+            pr.isWaitingOnMe &&
+            currentViewerLogin &&
+            currentViewerLogin.toLowerCase() === selectedReviewer.toLowerCase()
+          );
+
+          if (!matchesRequested && !matchesParticipant && !matchesWaitingOnMe) {
+            return false;
+          }
+        }
+
         // Repo filter
         if (selectedRepo !== 'all' && pr.repository.nameWithOwner !== selectedRepo) {
           return false;
@@ -129,7 +169,7 @@ export default function App() {
             return 0;
         }
       });
-  }, [prs, selectedRepo, activeFilter, searchQuery, sortOption]);
+  }, [prs, selectedReviewer, currentViewerLogin, selectedRepo, activeFilter, searchQuery, sortOption]);
 
   const counts: Record<FilterPreset, number> = useMemo(() => {
     return {
@@ -154,6 +194,9 @@ export default function App() {
         isLoading={isLoading}
         rateLimit={rateLimit}
         lastFetched={lastFetched}
+        prs={prs}
+        selectedReviewer={selectedReviewer}
+        onSelectReviewer={setSelectedReviewer}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-4">
@@ -237,6 +280,23 @@ export default function App() {
               availableRepos={settings.repositories}
               counts={counts}
             />
+
+            {selectedReviewer && (
+              <div className="flex items-center justify-between px-3.5 py-2 bg-blue-950/50 border border-blue-800/80 rounded-xl text-xs text-blue-200">
+                <span className="flex items-center gap-1.5">
+                  <span>Filtered by reviewer:</span>
+                  <strong className="text-blue-300 font-semibold">@{selectedReviewer}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedReviewer(null)}
+                  className="px-2 py-0.5 text-[11px] font-medium text-rose-400 hover:text-rose-300 bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800/60 rounded-md transition-colors cursor-pointer"
+                  aria-label="Clear Reviewer Filter"
+                >
+                  Clear Reviewer Filter
+                </button>
+              </div>
+            )}
 
             <PRTable prs={filteredPrs} isLoading={isLoading} />
           </>

@@ -50,6 +50,8 @@ export interface PullRequestItem {
   additions?: number;
   deletions?: number;
   sizeCategory?: PRSizeCategory;
+  requestedReviewers?: Array<{ login: string; avatarUrl?: string } | string>;
+  reviewRequests?: any[];
 }
 
 export interface ReviewerWorkload {

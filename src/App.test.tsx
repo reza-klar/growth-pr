@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import App from './App';
 import * as storage from './services/storage';
 import * as github from './services/github';
-import { PullRequestItem } from './types';
+import * as watcherHook from './hooks/useNotificationWatcher';
+import { PullRequestItem, DEFAULT_NOTIFICATION_SETTINGS } from './types';
 
 const mockPR1: PullRequestItem = {
   id: 'PR_1',
@@ -30,6 +31,10 @@ const mockPR1: PullRequestItem = {
   labels: [{ name: 'frontend', color: '3b82f6' }],
   isWaitingOnMe: false,
   isAuthoredByMe: true,
+  additions: 25,
+  deletions: 10,
+  sizeCategory: 'S',
+  requestedReviewers: [{ login: 'reviewer1', avatarUrl: 'https://github.com/reviewer1.png' }],
 };
 
 const mockPR2: PullRequestItem = {
@@ -57,6 +62,10 @@ const mockPR2: PullRequestItem = {
   labels: [{ name: 'bug', color: 'ef4444' }],
   isWaitingOnMe: true,
   isAuthoredByMe: false,
+  additions: 600,
+  deletions: 200,
+  sizeCategory: 'L',
+  requestedReviewers: [{ login: 'reviewer2', avatarUrl: 'https://github.com/reviewer2.png' }],
 };
 
 describe('App Main Dashboard Integration', () => {
@@ -78,6 +87,7 @@ describe('App Main Dashboard Integration', () => {
       presets: [],
       activePresetId: null,
       autoRefreshIntervalSeconds: 0,
+      notifications: DEFAULT_NOTIFICATION_SETTINGS,
     });
 
     render(<App />);
@@ -93,6 +103,7 @@ describe('App Main Dashboard Integration', () => {
       presets: [],
       activePresetId: null,
       autoRefreshIntervalSeconds: 0,
+      notifications: DEFAULT_NOTIFICATION_SETTINGS,
     });
 
     render(<App />);
@@ -121,6 +132,7 @@ describe('App Main Dashboard Integration', () => {
       presets: [],
       activePresetId: null,
       autoRefreshIntervalSeconds: 0,
+      notifications: DEFAULT_NOTIFICATION_SETTINGS,
     });
 
     const fetchSpy = vi.spyOn(github, 'fetchRepoPRs').mockResolvedValue({
@@ -148,6 +160,7 @@ describe('App Main Dashboard Integration', () => {
       presets: [],
       activePresetId: null,
       autoRefreshIntervalSeconds: 0,
+      notifications: DEFAULT_NOTIFICATION_SETTINGS,
     });
 
     const fetchSpy = vi.spyOn(github, 'fetchRepoPRs').mockResolvedValue({
@@ -179,6 +192,7 @@ describe('App Main Dashboard Integration', () => {
       presets: [],
       activePresetId: null,
       autoRefreshIntervalSeconds: 0,
+      notifications: DEFAULT_NOTIFICATION_SETTINGS,
     });
 
     const fetchSpy = vi.spyOn(github, 'fetchRepoPRs')
@@ -213,6 +227,7 @@ describe('App Main Dashboard Integration', () => {
       presets: [],
       activePresetId: null,
       autoRefreshIntervalSeconds: 0,
+      notifications: DEFAULT_NOTIFICATION_SETTINGS,
     });
 
     vi.spyOn(github, 'fetchRepoPRs').mockResolvedValue({
@@ -243,6 +258,7 @@ describe('App Main Dashboard Integration', () => {
       presets: [],
       activePresetId: null,
       autoRefreshIntervalSeconds: 0,
+      notifications: DEFAULT_NOTIFICATION_SETTINGS,
     });
 
     vi.spyOn(github, 'fetchRepoPRs').mockResolvedValue({
@@ -287,6 +303,7 @@ describe('App Main Dashboard Integration', () => {
       presets: [],
       activePresetId: null,
       autoRefreshIntervalSeconds: 0,
+      notifications: DEFAULT_NOTIFICATION_SETTINGS,
     });
 
     vi.spyOn(github, 'fetchRepoPRs').mockResolvedValue({
@@ -330,6 +347,7 @@ describe('App Main Dashboard Integration', () => {
       presets: [],
       activePresetId: null,
       autoRefreshIntervalSeconds: 60,
+      notifications: DEFAULT_NOTIFICATION_SETTINGS,
     });
 
     const fetchSpy = vi.spyOn(github, 'fetchRepoPRs').mockResolvedValue({
@@ -354,4 +372,195 @@ describe('App Main Dashboard Integration', () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(3);
   });
+
+  it('renders diff size badges in PR table rows', async () => {
+    vi.spyOn(storage, 'getStoredSettings').mockReturnValue({
+      token: 'ghp_mock_token',
+      storageType: 'local',
+      repositories: ['acme/web-app', 'acme/backend'],
+      presets: [],
+      activePresetId: null,
+      autoRefreshIntervalSeconds: 0,
+      notifications: DEFAULT_NOTIFICATION_SETTINGS,
+    });
+
+    vi.spyOn(github, 'fetchRepoPRs').mockResolvedValue({
+      prs: [mockPR1, mockPR2],
+      rateLimit: { limit: 5000, remaining: 4990, resetAt: new Date().toISOString(), used: 10 },
+      warnings: [],
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('S')).toBeInTheDocument();
+      expect(screen.getByText('L')).toBeInTheDocument();
+    });
+  });
+
+  it('filters PRs by selected reviewer via Team Workload popover and allows clearing filter', async () => {
+    vi.spyOn(storage, 'getStoredSettings').mockReturnValue({
+      token: 'ghp_mock_token',
+      storageType: 'local',
+      repositories: ['acme/web-app', 'acme/backend'],
+      presets: [],
+      activePresetId: null,
+      autoRefreshIntervalSeconds: 0,
+      notifications: DEFAULT_NOTIFICATION_SETTINGS,
+    });
+
+    vi.spyOn(github, 'fetchRepoPRs').mockResolvedValue({
+      prs: [mockPR1, mockPR2],
+      rateLimit: { limit: 5000, remaining: 4990, resetAt: new Date().toISOString(), used: 10 },
+      warnings: [],
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/refactor: modularize API services/i)).toBeInTheDocument();
+      expect(screen.getByText(/fix: resolve race condition in worker/i)).toBeInTheDocument();
+    });
+
+    // Check Team Workload button in Header
+    const workloadButton = screen.getByRole('button', { name: /Team Workload/i });
+    expect(workloadButton).toBeInTheDocument();
+    expect(workloadButton).toHaveTextContent('2 pending');
+
+    // Open Team Workload popover
+    fireEvent.click(workloadButton);
+
+    // Both reviewers are displayed in popover
+    const reviewer1Btn = await screen.findByRole('button', { name: /@reviewer1/i });
+    const reviewer2Btn = screen.getByRole('button', { name: /@reviewer2/i });
+    expect(reviewer1Btn).toBeInTheDocument();
+    expect(reviewer2Btn).toBeInTheDocument();
+
+    // Select reviewer1
+    fireEvent.click(reviewer1Btn);
+
+    // Verify reviewer filter is active: only mockPR1 is visible
+    await waitFor(() => {
+      expect(screen.getByText(/refactor: modularize API services/i)).toBeInTheDocument();
+      expect(screen.queryByText(/fix: resolve race condition in worker/i)).not.toBeInTheDocument();
+    });
+
+    // Clear filter via the active reviewer banner or clear button
+    const clearButton = screen.getByRole('button', { name: /Clear Reviewer Filter/i });
+    fireEvent.click(clearButton);
+
+    // Both PRs are visible again
+    await waitFor(() => {
+      expect(screen.getByText(/refactor: modularize API services/i)).toBeInTheDocument();
+      expect(screen.getByText(/fix: resolve race condition in worker/i)).toBeInTheDocument();
+    });
+  });
+
+  it('invokes useNotificationWatcher with PR data, notification settings, and viewer login', async () => {
+    const watcherSpy = vi.spyOn(watcherHook, 'useNotificationWatcher');
+
+    vi.spyOn(storage, 'getStoredSettings').mockReturnValue({
+      token: 'ghp_mock_token',
+      storageType: 'local',
+      repositories: ['acme/web-app'],
+      presets: [],
+      activePresetId: null,
+      autoRefreshIntervalSeconds: 0,
+      notifications: {
+        enabled: true,
+        notifyReviewRequests: true,
+        notifyCIFailures: true,
+        notifyComments: true,
+        notifyStalePRs: false,
+      },
+    });
+
+    vi.spyOn(github, 'fetchRepoPRs').mockResolvedValue({
+      prs: [mockPR1],
+      rateLimit: { limit: 5000, remaining: 4990, resetAt: new Date().toISOString(), used: 10 },
+      warnings: [],
+      viewerLogin: 'dev1',
+    } as any);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/refactor: modularize API services/i)).toBeInTheDocument();
+    });
+
+    expect(watcherSpy).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ id: 'PR_1' })]),
+      expect.objectContaining({ enabled: true }),
+      'dev1'
+    );
+  });
+
+  it('triggers browser notification when notification watcher detects updates on refresh', async () => {
+    const mockNotificationCtor = vi.fn().mockImplementation(function (title, options) {
+      return { title, options, onclick: null };
+    });
+    (mockNotificationCtor as any).permission = 'granted';
+    (mockNotificationCtor as any).requestPermission = vi.fn().mockResolvedValue('granted');
+    const originalNotification = (globalThis as any).Notification;
+    (globalThis as any).Notification = mockNotificationCtor;
+
+    try {
+      vi.spyOn(storage, 'getStoredSettings').mockReturnValue({
+        token: 'ghp_mock_token',
+        storageType: 'local',
+        repositories: ['acme/web-app'],
+        presets: [],
+        activePresetId: null,
+        autoRefreshIntervalSeconds: 0,
+        notifications: {
+          enabled: true,
+          notifyReviewRequests: true,
+          notifyCIFailures: true,
+          notifyComments: true,
+          notifyStalePRs: false,
+        },
+      });
+
+      let currentMockPRs = [mockPR1];
+      vi.spyOn(github, 'fetchRepoPRs').mockImplementation(async () => ({
+        prs: currentMockPRs,
+        rateLimit: { limit: 5000, remaining: 4990, resetAt: new Date().toISOString(), used: 10 },
+        warnings: [],
+        viewerLogin: 'dev1',
+      }));
+
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/refactor: modularize API services/i)).toBeInTheDocument();
+      });
+
+      // Initial snapshot should not trigger notifications
+      expect(mockNotificationCtor).not.toHaveBeenCalled();
+
+      // Update PR1: transition authored PR from SUCCESS to FAILURE
+      currentMockPRs = [
+        {
+          ...mockPR1,
+          ciStatus: 'FAILURE',
+        },
+      ];
+
+      // Click Refresh
+      fireEvent.click(screen.getByRole('button', { name: /Refresh/i }));
+
+      await waitFor(() => {
+        expect(mockNotificationCtor).toHaveBeenCalledWith(
+          expect.stringContaining('CI Failed: #100'),
+          expect.objectContaining({
+            body: expect.stringContaining('Checks failed'),
+          })
+        );
+      });
+    } finally {
+      (globalThis as any).Notification = originalNotification;
+    }
+  });
 });
+
+
