@@ -2,6 +2,8 @@ export type ReviewDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED
 export type CIStatus = 'SUCCESS' | 'FAILURE' | 'PENDING' | 'NEUTRAL';
 export type SLAStatus = 'normal' | 'warning' | 'stale';
 
+export type PRSizeCategory = 'XS' | 'S' | 'M' | 'L' | 'XL';
+
 export interface Author {
   login: string;
   avatarUrl: string;
@@ -45,7 +47,32 @@ export interface PullRequestItem {
   labels: { name: string; color: string }[];
   isWaitingOnMe?: boolean;
   isAuthoredByMe?: boolean;
+  additions?: number;
+  deletions?: number;
+  sizeCategory?: PRSizeCategory;
 }
+
+export interface ReviewerWorkload {
+  login: string;
+  avatarUrl: string;
+  pendingReviewsCount: number;
+}
+
+export interface NotificationSettings {
+  enabled: boolean;
+  notifyReviewRequests: boolean;
+  notifyCIFailures: boolean;
+  notifyComments: boolean;
+  notifyStalePRs: boolean;
+}
+
+export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
+  enabled: false,
+  notifyReviewRequests: true,
+  notifyCIFailures: true,
+  notifyComments: true,
+  notifyStalePRs: false,
+};
 
 export interface PresetGroup {
   id: string;
@@ -60,6 +87,7 @@ export interface AppSettings {
   presets: PresetGroup[];
   activePresetId: string | null;
   autoRefreshIntervalSeconds: number;
+  notifications: NotificationSettings;
 }
 
 export interface RateLimitInfo {
