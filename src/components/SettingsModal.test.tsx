@@ -173,6 +173,216 @@ describe('SettingsModal', () => {
       expect(screen.getByText(/Please enter a token first/i)).toBeInTheDocument();
     });
   });
+
+  it('toggles desktop notifications and specific event checkboxes and saves settings', () => {
+    const handleSave = vi.fn();
+    const handleClose = vi.fn();
+
+    render(
+      <SettingsModal
+        isOpen={true}
+        onClose={handleClose}
+        settings={DEFAULT_SETTINGS}
+        onSave={handleSave}
+      />
+    );
+
+    expect(screen.getByText('Desktop Notifications')).toBeInTheDocument();
+
+    const mainToggle = screen.getByLabelText(/Enable Desktop Notifications/i);
+    expect(mainToggle).not.toBeChecked();
+
+    fireEvent.click(mainToggle);
+    expect(mainToggle).toBeChecked();
+
+    const reviewCheckbox = screen.getByLabelText(/Review requests on me/i);
+    const ciCheckbox = screen.getByLabelText(/CI failures on my PRs/i);
+    const commentsCheckbox = screen.getByLabelText(/Comments on my PRs/i);
+    const staleCheckbox = screen.getByLabelText(/Stale PR warnings/i);
+
+    expect(reviewCheckbox).toBeChecked();
+    expect(ciCheckbox).toBeChecked();
+    expect(commentsCheckbox).toBeChecked();
+    expect(staleCheckbox).not.toBeChecked();
+
+    fireEvent.click(reviewCheckbox);
+    fireEvent.click(staleCheckbox);
+
+    const saveBtn = screen.getByRole('button', { name: /Save & Apply/i });
+    fireEvent.click(saveBtn);
+
+    expect(handleSave).toHaveBeenCalledWith({
+      ...DEFAULT_SETTINGS,
+      notifications: {
+        enabled: true,
+        notifyReviewRequests: false,
+        notifyCIFailures: true,
+        notifyComments: true,
+        notifyStalePRs: true,
+      },
+    });
+    expect(handleClose).toHaveBeenCalled();
+  });
+
+  it('displays granted permission indicator when permission is granted', () => {
+    (globalThis as any).Notification = {
+      permission: 'granted',
+      requestPermission: vi.fn().mockResolvedValue('granted'),
+    };
+
+    render(
+      <SettingsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        settings={{
+          ...DEFAULT_SETTINGS,
+          notifications: { ...DEFAULT_SETTINGS.notifications, enabled: true },
+        }}
+        onSave={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText(/Permission Granted/i)).toBeInTheDocument();
+  });
+
+  it('displays denied permission indicator and warning when permission is denied', () => {
+    (globalThis as any).Notification = {
+      permission: 'denied',
+      requestPermission: vi.fn().mockResolvedValue('denied'),
+    };
+
+    render(
+      <SettingsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        settings={{
+          ...DEFAULT_SETTINGS,
+          notifications: { ...DEFAULT_SETTINGS.notifications, enabled: true },
+        }}
+        onSave={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText(/Permission Denied/i)).toBeInTheDocument();
+    expect(screen.getByText(/Notifications are blocked/i)).toBeInTheDocument();
+  });
+
+  it('requests notification permission when Request Permission button is clicked', async () => {
+    const requestPermissionMock = vi.fn().mockResolvedValue('granted');
+    (globalThis as any).Notification = {
+      permission: 'default',
+      requestPermission: requestPermissionMock,
+    };
+
+    render(
+      <SettingsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        settings={DEFAULT_SETTINGS}
+        onSave={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText(/Permission Required/i)).toBeInTheDocument();
+    const reqBtn = screen.getByRole('button', { name: /Request Permission/i });
+    fireEvent.click(reqBtn);
+
+    expect(requestPermissionMock).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByText(/Permission Granted/i)).toBeInTheDocument();
+    });
+  });
+
+  it('disables granular checkboxes when notifications are disabled', () => {
+    render(
+      <SettingsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        settings={{
+          ...DEFAULT_SETTINGS,
+          notifications: { ...DEFAULT_SETTINGS.notifications, enabled: false },
+        }}
+        onSave={vi.fn()}
+      />
+    );
+
+    const reviewCheckbox = screen.getByLabelText(/Review requests on me/i);
+    const ciCheckbox = screen.getByLabelText(/CI failures on my PRs/i);
+    const commentsCheckbox = screen.getByLabelText(/Comments on my PRs/i);
+    const staleCheckbox = screen.getByLabelText(/Stale PR warnings/i);
+
+    expect(reviewCheckbox).toBeDisabled();
+    expect(ciCheckbox).toBeDisabled();
+    expect(commentsCheckbox).toBeDisabled();
+    expect(staleCheckbox).toBeDisabled();
+  });
+
+  it('requests permission automatically when enabling notifications if permission is default', async () => {
+    const requestPermissionMock = vi.fn().mockResolvedValue('granted');
+    (globalThis as any).Notification = {
+      permission: 'default',
+      requestPermission: requestPermissionMock,
+    };
+
+    render(
+      <SettingsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        settings={DEFAULT_SETTINGS}
+        onSave={vi.fn()}
+      />
+    );
+
+    const mainToggle = screen.getByLabelText(/Enable Desktop Notifications/i);
+    fireEvent.click(mainToggle);
+
+    expect(requestPermissionMock).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByText(/Permission Granted/i)).toBeInTheDocument();
+    });
+  });
+
+  it('allows toggling ci failures and comments checkboxes', () => {
+    const handleSave = vi.fn();
+    render(
+      <SettingsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        settings={{
+          ...DEFAULT_SETTINGS,
+          notifications: {
+            enabled: true,
+            notifyReviewRequests: true,
+            notifyCIFailures: true,
+            notifyComments: true,
+            notifyStalePRs: false,
+          },
+        }}
+        onSave={handleSave}
+      />
+    );
+
+    const ciCheckbox = screen.getByLabelText(/CI failures on my PRs/i);
+    const commentsCheckbox = screen.getByLabelText(/Comments on my PRs/i);
+
+    fireEvent.click(ciCheckbox);
+    fireEvent.click(commentsCheckbox);
+
+    const saveBtn = screen.getByRole('button', { name: /Save & Apply/i });
+    fireEvent.click(saveBtn);
+
+    expect(handleSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notifications: {
+          enabled: true,
+          notifyReviewRequests: true,
+          notifyCIFailures: false,
+          notifyComments: false,
+          notifyStalePRs: false,
+        },
+      })
+    );
+  });
 });
 
 describe('RepoInput', () => {

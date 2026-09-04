@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, Key, ShieldCheck, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
-import { AppSettings } from '../types';
+import { X, Key, ShieldCheck, RefreshCw, CheckCircle2, AlertCircle, Bell } from 'lucide-react';
+import { AppSettings, NotificationSettings, DEFAULT_NOTIFICATION_SETTINGS } from '../types';
 import { RepoInput } from './RepoInput';
 import { verifyToken } from '../services/github';
+import { getNotificationPermission, requestNotificationPermission } from '../utils/notifications';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -22,6 +23,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [repositories, setRepositories] = useState(settings.repositories);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState(
     settings.autoRefreshIntervalSeconds
+  );
+  const [notifications, setNotifications] = useState<NotificationSettings>(
+    settings.notifications || DEFAULT_NOTIFICATION_SETTINGS
+  );
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(() =>
+    getNotificationPermission()
   );
 
   const [verifying, setVerifying] = useState(false);
@@ -61,6 +68,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  const handleRequestPermission = async () => {
+    const perm = await requestNotificationPermission();
+    setPermissionStatus(perm);
+    if (perm === 'granted') {
+      setNotifications((prev) => ({ ...prev, enabled: true }));
+    }
+  };
+
+  const handleToggleNotifications = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked;
+    if (checked && permissionStatus === 'default') {
+      const perm = await requestNotificationPermission();
+      setPermissionStatus(perm);
+    }
+    setNotifications((prev) => ({ ...prev, enabled: checked }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave({
@@ -69,6 +93,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       storageType,
       repositories,
       autoRefreshIntervalSeconds: autoRefreshInterval,
+      notifications,
     });
     onClose();
   };
@@ -221,6 +246,177 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <option value={300}>Every 5 minutes</option>
               <option value={600}>Every 10 minutes</option>
             </select>
+          </div>
+
+          {/* Desktop Notifications */}
+          <div className="space-y-3 pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Bell className="w-4 h-4 text-blue-400" />
+                <span className="text-sm font-medium text-slate-200">Desktop Notifications</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {permissionStatus === 'granted' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-950/60 border border-emerald-800 text-emerald-300">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    Permission Granted
+                  </span>
+                )}
+                {permissionStatus === 'denied' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-950/60 border border-rose-800 text-rose-300">
+                    <AlertCircle className="w-3 h-3 text-rose-400" />
+                    Permission Denied
+                  </span>
+                )}
+                {permissionStatus === 'default' && (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-950/60 border border-amber-800 text-amber-300">
+                      Permission Required
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleRequestPermission}
+                      className="px-2.5 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded font-medium transition-colors cursor-pointer"
+                    >
+                      Request Permission
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {permissionStatus === 'denied' && (
+              <div className="flex items-center gap-2 p-2.5 rounded-lg text-xs bg-rose-950/40 border border-rose-800/80 text-rose-300">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>Notifications are blocked by your browser settings. Please enable them in site settings to receive alerts.</span>
+              </div>
+            )}
+
+            {/* Main Toggle */}
+            <div className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-lg">
+              <div className="space-y-0.5">
+                <label htmlFor="enable-desktop-notifications" className="text-sm font-medium text-slate-200 cursor-pointer">
+                  Enable Desktop Notifications
+                </label>
+                <p className="text-xs text-slate-400">
+                  Receive alerts for review requests, CI failures, comments, and stale PRs.
+                </p>
+              </div>
+              <input
+                id="enable-desktop-notifications"
+                type="checkbox"
+                checked={notifications.enabled}
+                onChange={handleToggleNotifications}
+                className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0 cursor-pointer"
+              />
+            </div>
+
+            {/* Granular Event Triggers */}
+            <div className="space-y-2 pt-1">
+              <span className="text-xs font-medium text-slate-400">Notification Triggers</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <label
+                  htmlFor="notify-review-requests"
+                  className={`flex items-start gap-2.5 p-3 bg-slate-950 border border-slate-800 rounded-lg transition-colors ${
+                    notifications.enabled ? 'cursor-pointer hover:border-slate-700' : 'opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <input
+                    id="notify-review-requests"
+                    type="checkbox"
+                    disabled={!notifications.enabled}
+                    checked={notifications.notifyReviewRequests}
+                    onChange={(e) =>
+                      setNotifications((prev) => ({
+                        ...prev,
+                        notifyReviewRequests: e.target.checked,
+                      }))
+                    }
+                    className="mt-0.5 w-4 h-4 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0 cursor-pointer disabled:cursor-not-allowed"
+                  />
+                  <div className="text-xs space-y-0.5">
+                    <span className="font-medium text-slate-200 block">Review requests on me</span>
+                    <span className="text-slate-400">When your review is requested on a pull request</span>
+                  </div>
+                </label>
+
+                <label
+                  htmlFor="notify-ci-failures"
+                  className={`flex items-start gap-2.5 p-3 bg-slate-950 border border-slate-800 rounded-lg transition-colors ${
+                    notifications.enabled ? 'cursor-pointer hover:border-slate-700' : 'opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <input
+                    id="notify-ci-failures"
+                    type="checkbox"
+                    disabled={!notifications.enabled}
+                    checked={notifications.notifyCIFailures}
+                    onChange={(e) =>
+                      setNotifications((prev) => ({
+                        ...prev,
+                        notifyCIFailures: e.target.checked,
+                      }))
+                    }
+                    className="mt-0.5 w-4 h-4 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0 cursor-pointer disabled:cursor-not-allowed"
+                  />
+                  <div className="text-xs space-y-0.5">
+                    <span className="font-medium text-slate-200 block">CI failures on my PRs</span>
+                    <span className="text-slate-400">When automated checks fail on pull requests you authored</span>
+                  </div>
+                </label>
+
+                <label
+                  htmlFor="notify-comments"
+                  className={`flex items-start gap-2.5 p-3 bg-slate-950 border border-slate-800 rounded-lg transition-colors ${
+                    notifications.enabled ? 'cursor-pointer hover:border-slate-700' : 'opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <input
+                    id="notify-comments"
+                    type="checkbox"
+                    disabled={!notifications.enabled}
+                    checked={notifications.notifyComments}
+                    onChange={(e) =>
+                      setNotifications((prev) => ({
+                        ...prev,
+                        notifyComments: e.target.checked,
+                      }))
+                    }
+                    className="mt-0.5 w-4 h-4 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0 cursor-pointer disabled:cursor-not-allowed"
+                  />
+                  <div className="text-xs space-y-0.5">
+                    <span className="font-medium text-slate-200 block">Comments on my PRs</span>
+                    <span className="text-slate-400">When new comments are posted on your pull requests</span>
+                  </div>
+                </label>
+
+                <label
+                  htmlFor="notify-stale-prs"
+                  className={`flex items-start gap-2.5 p-3 bg-slate-950 border border-slate-800 rounded-lg transition-colors ${
+                    notifications.enabled ? 'cursor-pointer hover:border-slate-700' : 'opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <input
+                    id="notify-stale-prs"
+                    type="checkbox"
+                    disabled={!notifications.enabled}
+                    checked={notifications.notifyStalePRs}
+                    onChange={(e) =>
+                      setNotifications((prev) => ({
+                        ...prev,
+                        notifyStalePRs: e.target.checked,
+                      }))
+                    }
+                    className="mt-0.5 w-4 h-4 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0 cursor-pointer disabled:cursor-not-allowed"
+                  />
+                  <div className="text-xs space-y-0.5">
+                    <span className="font-medium text-slate-200 block">Stale PR warnings (&gt;48h)</span>
+                    <span className="text-slate-400">When pull requests become inactive for over 48 hours</span>
+                  </div>
+                </label>
+              </div>
+            </div>
           </div>
 
           {/* Footer Actions */}
