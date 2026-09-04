@@ -73,4 +73,105 @@ describe('Header', () => {
     const refreshBtn = screen.getByRole('button', { name: /Refresh/i });
     expect(refreshBtn).toBeDisabled();
   });
+
+  it('renders TeamWorkloadPopover in header and forwards onSelectReviewer', () => {
+    const handleSelect = vi.fn();
+    const mockPRs: any[] = [
+      {
+        id: 'PR_1',
+        number: 1,
+        title: 'PR 1',
+        url: 'https://github.com/org/repo/pull/1',
+        repository: { nameWithOwner: 'org/repo', url: 'https://github.com/org/repo' },
+        author: { login: 'dev', avatarUrl: '', url: '' },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isDraft: false,
+        baseRefName: 'main',
+        headRefName: 'feat',
+        totalCommentsCount: 0,
+        participants: [],
+        lastInteraction: { user: { login: 'dev', avatarUrl: '', url: '' }, type: 'commit', createdAt: '' },
+        reviewDecision: 'REVIEW_REQUIRED',
+        ciStatus: 'SUCCESS',
+        slaStatus: 'normal',
+        labels: [],
+        requestedReviewers: [{ login: 'alex', avatarUrl: 'https://github.com/alex.png' }],
+      },
+    ];
+
+    render(
+      <Header
+        onRefresh={vi.fn()}
+        onOpenSettings={vi.fn()}
+        onOpenExport={vi.fn()}
+        isLoading={false}
+        rateLimit={null}
+        lastFetched={null}
+        prs={mockPRs}
+        selectedReviewer={null}
+        onSelectReviewer={handleSelect}
+      />
+    );
+
+    const workloadBtn = screen.getByRole('button', { name: /Team Workload/i });
+    expect(workloadBtn).toBeInTheDocument();
+    expect(screen.getByText(/1 pending/i)).toBeInTheDocument();
+
+    fireEvent.click(workloadBtn);
+    expect(screen.getByText('@alex')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('@alex'));
+    expect(handleSelect).toHaveBeenCalledWith('alex');
+  });
+
+  it('allows clearing active reviewer filter from header workload popover', () => {
+    const handleSelect = vi.fn();
+    const mockPRs: any[] = [
+      {
+        id: 'PR_1',
+        number: 1,
+        title: 'PR 1',
+        url: 'https://github.com/org/repo/pull/1',
+        repository: { nameWithOwner: 'org/repo', url: 'https://github.com/org/repo' },
+        author: { login: 'dev', avatarUrl: '', url: '' },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isDraft: false,
+        baseRefName: 'main',
+        headRefName: 'feat',
+        totalCommentsCount: 0,
+        participants: [],
+        lastInteraction: { user: { login: 'dev', avatarUrl: '', url: '' }, type: 'commit', createdAt: '' },
+        reviewDecision: 'REVIEW_REQUIRED',
+        ciStatus: 'SUCCESS',
+        slaStatus: 'normal',
+        labels: [],
+        requestedReviewers: [{ login: 'alex', avatarUrl: 'https://github.com/alex.png' }],
+      },
+    ];
+
+    render(
+      <Header
+        onRefresh={vi.fn()}
+        onOpenSettings={vi.fn()}
+        onOpenExport={vi.fn()}
+        isLoading={false}
+        rateLimit={null}
+        lastFetched={null}
+        prs={mockPRs}
+        selectedReviewer="alex"
+        onSelectReviewer={handleSelect}
+      />
+    );
+
+    const workloadBtn = screen.getByRole('button', { name: /Team Workload/i });
+    fireEvent.click(workloadBtn);
+
+    const clearBtn = screen.getByRole('button', { name: /Clear Filter/i });
+    expect(clearBtn).toBeInTheDocument();
+    fireEvent.click(clearBtn);
+    expect(handleSelect).toHaveBeenCalledWith(null);
+  });
 });
+

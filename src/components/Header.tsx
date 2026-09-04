@@ -1,6 +1,7 @@
 import React from 'react';
 import { GitPullRequest, RefreshCw, Settings, Share2, Activity } from 'lucide-react';
-import { RateLimitInfo } from '../types';
+import { RateLimitInfo, PullRequestItem } from '../types';
+import { TeamWorkloadPopover } from './TeamWorkloadPopover';
 
 export interface HeaderProps {
   onRefresh: () => void;
@@ -9,6 +10,9 @@ export interface HeaderProps {
   isLoading: boolean;
   rateLimit: RateLimitInfo | null;
   lastFetched: Date | null;
+  prs?: PullRequestItem[];
+  selectedReviewer?: string | null;
+  onSelectReviewer?: (login: string | null) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,6 +22,9 @@ export const Header: React.FC<HeaderProps> = ({
   isLoading,
   rateLimit,
   lastFetched,
+  prs = [],
+  selectedReviewer = null,
+  onSelectReviewer = () => {},
 }) => {
   return (
     <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-30 px-6 py-3.5">
@@ -55,6 +62,12 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </div>
           )}
+
+          <TeamWorkloadPopover
+            prs={prs}
+            selectedReviewer={selectedReviewer}
+            onSelectReviewer={onSelectReviewer}
+          />
 
           <button
             type="button"
