@@ -2,6 +2,7 @@ import React from 'react';
 import { GitBranch, MessageSquare, ExternalLink, MessageCircle } from 'lucide-react';
 import { PullRequestItem } from '../types';
 import { ReviewBadge, CIBadge, SLABadge } from './StatusBadges';
+import { PRSizeBadge } from './PRSizeBadge';
 
 function timeAgo(dateString: string): string {
   const date = new Date(dateString);
@@ -54,6 +55,12 @@ export const PRRow: React.FC<{ pr: PullRequestItem }> = ({ pr }) => {
               <span className="text-slate-600">→</span>
               <span className="text-slate-400">{pr.baseRefName}</span>
             </span>
+
+            <PRSizeBadge
+              additions={pr.additions}
+              deletions={pr.deletions}
+              sizeCategory={pr.sizeCategory}
+            />
 
             {pr.labels.map((l) => (
               <span
