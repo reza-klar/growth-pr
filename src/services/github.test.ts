@@ -396,10 +396,12 @@ describe('github api service', () => {
       const prForReviewer = transformGraphQLPR(node, 'reviewer-user');
       expect(prForReviewer.isAuthoredByMe).toBe(false);
       expect(prForReviewer.isWaitingOnMe).toBe(true);
+      expect(prForReviewer.requestedReviewers).toEqual(['reviewer-user']);
 
       const prForOther = transformGraphQLPR(node, 'other-user');
       expect(prForOther.isAuthoredByMe).toBe(false);
       expect(prForOther.isWaitingOnMe).toBe(false);
+      expect(prForOther.requestedReviewers).toEqual(['reviewer-user']);
     });
 
     it('calculates sizeCategory correctly based on additions and deletions', () => {

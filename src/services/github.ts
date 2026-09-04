@@ -467,5 +467,6 @@ export function transformGraphQLPR(node: any, viewerLogin?: string): PullRequest
     additions,
     deletions,
     sizeCategory,
+    requestedReviewers,
   };
 }
