@@ -1,4 +1,13 @@
-import { PullRequestItem, RateLimitInfo, ReviewDecision, CIStatus, SLAStatus, Participant, LastInteraction } from '../types';
+import { PullRequestItem, RateLimitInfo, ReviewDecision, CIStatus, SLAStatus, Participant, LastInteraction, PRSizeCategory } from '../types';
+
+export function calculatePRSizeCategory(additions = 0, deletions = 0): PRSizeCategory {
+  const total = additions + deletions;
+  if (total >= 1000) return 'XL';
+  if (total >= 400) return 'L';
+  if (total >= 100) return 'M';
+  if (total >= 20) return 'S';
+  return 'XS';
+}
 
 export function buildBatchedGraphQLQuery(repositories: string[]): string {
   const repoQueries = repositories
@@ -20,6 +29,8 @@ export function buildBatchedGraphQLQuery(repositories: string[]): string {
             updatedAt
             baseRefName
             headRefName
+            additions
+            deletions
             author {
               login
               avatarUrl
@@ -424,6 +435,10 @@ export function transformGraphQLPR(node: any, viewerLogin?: string): PullRequest
   const isWaitingOnMe = Boolean(viewerLogin && requestedReviewers.includes(viewerLogin));
   const isAuthoredByMe = Boolean(viewerLogin && node.author?.login === viewerLogin);
 
+  const additions = typeof node.additions === 'number' ? node.additions : 0;
+  const deletions = typeof node.deletions === 'number' ? node.deletions : 0;
+  const sizeCategory = calculatePRSizeCategory(additions, deletions);
+
   return {
     id: node.id || '',
     number: node.number || 0,
@@ -449,5 +464,8 @@ export function transformGraphQLPR(node: any, viewerLogin?: string): PullRequest
     labels: (node.labels?.nodes || []).map((l: any) => ({ name: l.name, color: l.color })),
     isWaitingOnMe,
     isAuthoredByMe,
+    additions,
+    deletions,
+    sizeCategory,
   };
 }

@@ -25,6 +25,12 @@ describe('github api service', () => {
       expect(query).not.toContain('repo_0: repository(owner: "invalid-format"');
       expect(query).toContain('repo_2: repository(owner: "owner", name: "repo")');
     });
+
+    it('requests additions and deletions fields in PR query', () => {
+      const query = buildBatchedGraphQLQuery(['ownerA/repo1']);
+      expect(query).toContain('additions');
+      expect(query).toContain('deletions');
+    });
   });
 
   describe('verifyToken', () => {
@@ -394,6 +400,46 @@ describe('github api service', () => {
       const prForOther = transformGraphQLPR(node, 'other-user');
       expect(prForOther.isAuthoredByMe).toBe(false);
       expect(prForOther.isWaitingOnMe).toBe(false);
+    });
+
+    it('calculates sizeCategory correctly based on additions and deletions', () => {
+      const xsPR = transformGraphQLPR({ additions: 5, deletions: 5 });
+      expect(xsPR.sizeCategory).toBe('XS');
+
+      const sPR = transformGraphQLPR({ additions: 50, deletions: 30 });
+      expect(sPR.sizeCategory).toBe('S');
+
+      const mPR = transformGraphQLPR({ additions: 200, deletions: 150 });
+      expect(mPR.sizeCategory).toBe('M');
+
+      const lPR = transformGraphQLPR({ additions: 500, deletions: 300 });
+      expect(lPR.sizeCategory).toBe('L');
+
+      const xlPR = transformGraphQLPR({ additions: 1200, deletions: 200 });
+      expect(xlPR.sizeCategory).toBe('XL');
+    });
+
+    it('maps additions, deletions, and handles size threshold boundaries', () => {
+      const pr = transformGraphQLPR({ additions: 12, deletions: 7 });
+      expect(pr.additions).toBe(12);
+      expect(pr.deletions).toBe(7);
+      expect(pr.sizeCategory).toBe('XS');
+
+      expect(transformGraphQLPR({ additions: 19, deletions: 0 }).sizeCategory).toBe('XS');
+      expect(transformGraphQLPR({ additions: 20, deletions: 0 }).sizeCategory).toBe('S');
+      expect(transformGraphQLPR({ additions: 99, deletions: 0 }).sizeCategory).toBe('S');
+      expect(transformGraphQLPR({ additions: 100, deletions: 0 }).sizeCategory).toBe('M');
+      expect(transformGraphQLPR({ additions: 399, deletions: 0 }).sizeCategory).toBe('M');
+      expect(transformGraphQLPR({ additions: 400, deletions: 0 }).sizeCategory).toBe('L');
+      expect(transformGraphQLPR({ additions: 999, deletions: 0 }).sizeCategory).toBe('L');
+      expect(transformGraphQLPR({ additions: 1000, deletions: 0 }).sizeCategory).toBe('XL');
+    });
+
+    it('defaults additions, deletions to 0 and sizeCategory to XS when fields are missing', () => {
+      const pr = transformGraphQLPR({});
+      expect(pr.additions).toBe(0);
+      expect(pr.deletions).toBe(0);
+      expect(pr.sizeCategory).toBe('XS');
     });
   });
 });
