@@ -31,7 +31,7 @@ export const PRSizeBadge: React.FC<PRSizeBadgeProps> = ({
       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium border ${colorClass}`}
     >
       <span className="font-bold">{sizeCategory}</span>
-      <span className="font-mono text-[10px] opacity-80">
+      <span className="font-mono text-[10px]">
         +{additions} / -{deletions}
       </span>
     </span>

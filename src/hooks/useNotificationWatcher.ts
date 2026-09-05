@@ -35,6 +35,8 @@ export function useNotificationWatcher(
   }
 
   const previousPRsRef = useRef<PullRequestItem[] | null>(null);
+  const onNotificationRef = useRef(onNotification);
+  onNotificationRef.current = onNotification;
 
   useEffect(() => {
     // Initial snapshot baseline: do not send notifications on initial load
@@ -47,10 +49,10 @@ export function useNotificationWatcher(
       const events = detectPRChanges(previousPRsRef.current, prs, settings, currentLogin);
       for (const event of events) {
         sendBrowserNotification(event);
-        onNotification?.(event);
+        onNotificationRef.current?.(event);
       }
     }
 
     previousPRsRef.current = prs;
-  }, [prs, settings, currentLogin, onNotification]);
+  }, [prs, settings, currentLogin]);
 }

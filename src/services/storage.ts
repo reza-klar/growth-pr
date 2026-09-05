@@ -15,38 +15,43 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export function getStoredSettings(): AppSettings {
+  let parsed: Partial<AppSettings> | null = null;
+
   try {
     const fromSession = sessionStorage.getItem(STORAGE_KEY);
     if (fromSession) {
-      const parsed = JSON.parse(fromSession);
-      return {
-        ...DEFAULT_SETTINGS,
-        ...parsed,
-        notifications: {
-          ...DEFAULT_NOTIFICATION_SETTINGS,
-          ...(parsed.notifications || {}),
-        },
-      };
-    }
-    const fromLocal = localStorage.getItem(STORAGE_KEY);
-    if (fromLocal) {
-      const parsed = JSON.parse(fromLocal);
-      return {
-        ...DEFAULT_SETTINGS,
-        ...parsed,
-        notifications: {
-          ...DEFAULT_NOTIFICATION_SETTINGS,
-          ...(parsed.notifications || {}),
-        },
-      };
+      parsed = JSON.parse(fromSession);
     }
   } catch (err) {
-    console.error('Failed to parse stored settings:', err);
+    console.error('Failed to parse settings from sessionStorage:', err);
   }
+
+  if (!parsed) {
+    try {
+      const fromLocal = localStorage.getItem(STORAGE_KEY);
+      if (fromLocal) {
+        parsed = JSON.parse(fromLocal);
+      }
+    } catch (err) {
+      console.error('Failed to parse settings from localStorage:', err);
+    }
+  }
+
+  if (parsed) {
+    return {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+      notifications: {
+        ...DEFAULT_NOTIFICATION_SETTINGS,
+        ...(parsed.notifications || {}),
+      },
+    };
+  }
+
   return DEFAULT_SETTINGS;
 }
 
-export function saveStoredSettings(settings: AppSettings): void {
+export function saveStoredSettings(settings: AppSettings): boolean {
   try {
     const json = JSON.stringify(settings);
     if (settings.storageType === 'session') {
@@ -56,7 +61,9 @@ export function saveStoredSettings(settings: AppSettings): void {
       localStorage.setItem(STORAGE_KEY, json);
       sessionStorage.removeItem(STORAGE_KEY);
     }
+    return true;
   } catch (err) {
     console.error('Failed to save stored settings:', err);
+    return false;
   }
 }

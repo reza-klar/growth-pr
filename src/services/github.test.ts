@@ -402,6 +402,17 @@ describe('github api service', () => {
       expect(prForOther.isAuthoredByMe).toBe(false);
       expect(prForOther.isWaitingOnMe).toBe(false);
       expect(prForOther.requestedReviewers).toEqual(['reviewer-user']);
+
+      const nodeWithTeam = {
+        author: { login: 'reza' },
+        reviewRequests: {
+          nodes: [
+            { requestedReviewer: { slug: 'frontend-team', name: 'Frontend Team' } },
+          ],
+        },
+      };
+      const prWithTeam = transformGraphQLPR(nodeWithTeam, 'other-user');
+      expect(prWithTeam.requestedReviewers).toEqual(['frontend-team']);
     });
 
     it('calculates sizeCategory correctly based on additions and deletions', () => {

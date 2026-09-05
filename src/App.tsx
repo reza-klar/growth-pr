@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useDeferredValue } from 'react';
 import { Header } from './components/Header';
 import { FilterBar } from './components/FilterBar';
 import { PRTable } from './components/PRTable';
@@ -27,6 +27,7 @@ export default function App() {
   // Filters & Sorting state
   const [activeFilter, setActiveFilter] = useState<FilterPreset>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [sortOption, setSortOption] = useState<SortOption>('created_desc');
   const [selectedRepo, setSelectedRepo] = useState('all');
 
@@ -134,8 +135,8 @@ export default function App() {
         }
 
         // Text search
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
+        if (deferredSearchQuery.trim()) {
+          const q = deferredSearchQuery.toLowerCase();
           const matchTitle = pr.title.toLowerCase().includes(q);
           const matchAuthor = pr.author.login.toLowerCase().includes(q);
           const matchHead = pr.headRefName.toLowerCase().includes(q);
@@ -169,7 +170,7 @@ export default function App() {
             return 0;
         }
       });
-  }, [prs, selectedReviewer, currentViewerLogin, selectedRepo, activeFilter, searchQuery, sortOption]);
+  }, [prs, selectedReviewer, currentViewerLogin, selectedRepo, activeFilter, deferredSearchQuery, sortOption]);
 
   const counts: Record<FilterPreset, number> = useMemo(() => {
     return {

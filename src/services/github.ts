@@ -43,6 +43,10 @@ export function buildBatchedGraphQLQuery(repositories: string[]): string {
                   ... on User {
                     login
                   }
+                  ... on Team {
+                    slug
+                    name
+                  }
                 }
               }
             }
@@ -187,6 +191,9 @@ async function fetchGraphQLWithFallback(
         const j = await res.json();
         if (j.message) errMsg = j.message;
       } catch {}
+      if (repos.length > 1) {
+        throw new Error(errMsg);
+      }
       warningsSet.add(`Failed to load repositories [${repos.join(', ')}]: ${errMsg}`);
       return [];
     }
@@ -429,7 +436,7 @@ export function transformGraphQLPR(node: any, viewerLogin?: string): PullRequest
   }
 
   const requestedReviewers: string[] = (node.reviewRequests?.nodes || [])
-    .map((r: any) => r?.requestedReviewer?.login)
+    .map((r: any) => r?.requestedReviewer?.login || r?.requestedReviewer?.slug || r?.requestedReviewer?.name)
     .filter(Boolean);
 
   const isWaitingOnMe = Boolean(viewerLogin && requestedReviewers.includes(viewerLogin));

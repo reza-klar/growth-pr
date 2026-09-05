@@ -101,7 +101,12 @@ export function detectPRChanges(
         const isCommentInteractionNewer =
           currPR.lastInteraction?.type === 'comment' && currCommentTime > prevCommentTime;
 
-        if (hasMoreComments || isCommentInteractionNewer) {
+        const isSelfComment =
+          currentLogin &&
+          currPR.lastInteraction?.user?.login &&
+          currPR.lastInteraction.user.login.toLowerCase() === currentLogin.toLowerCase();
+
+        if (!isSelfComment && (hasMoreComments || isCommentInteractionNewer)) {
           const authorName = currPR.lastInteraction?.user?.login;
           const snippet = currPR.lastInteraction?.snippet;
           let body = `New comment on "${currPR.title}"`;

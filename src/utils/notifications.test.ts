@@ -238,6 +238,24 @@ describe('detectPRChanges', () => {
       expect(events.filter((e) => e.type === 'new_comment')).toHaveLength(0);
     });
 
+    it('does not notify user for comments made by themselves on their own PR', () => {
+      const prev = [{ ...samplePR, isAuthoredByMe: true, totalCommentsCount: 1 }];
+      const curr = [
+        {
+          ...samplePR,
+          isAuthoredByMe: true,
+          totalCommentsCount: 2,
+          lastInteraction: {
+            user: { login: 'alice', avatarUrl: '', url: '' },
+            type: 'comment' as const,
+            createdAt: '2026-09-01T14:00:00Z',
+          },
+        },
+      ];
+      const events = detectPRChanges(prev, curr, defaultSettings, 'alice');
+      expect(events.filter((e) => e.type === 'new_comment')).toHaveLength(0);
+    });
+
     it('does not detect new comment if notifyComments is false', () => {
       const prev = [{ ...samplePR, isAuthoredByMe: true, totalCommentsCount: 1 }];
       const curr = [
